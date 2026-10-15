@@ -1733,7 +1733,7 @@
 
           <div class="crop-hint" id="cropHintText">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-            <span id="hintSpan"><strong>পারসপেকটিভ মোড:</strong> বাঁকা ছবি/দলিলের ৪টি কোণা টেনে মিলিয়ে দিন, ক্যামস্ক্যানারের মতো হোমোগ্রাফি দিয়ে টানটান সোজা হয়ে যাবে। এছাড়া খালি জায়গায় মাউস টেনে নতুন সিলেকশন আঁকতে পারেন।</span>
+            <span id="hintSpan"><strong>ক্যামস্ক্যানার পারসপেকটিভ মোড:</strong> ৪টি কোণার পিন টেনে বাঁকা কোণা মেলান, আর ৪টি বাহুর হ্যান্ডেল টেনে উপরে-নিচে ও ডানে-বাঁয়ে সিলেকশন বড়/ছোট করুন। ভেতরের অংশ চেপে পুরো সিলেকশন ড্র্যাগ করা যাবে।</span>
           </div>
         </div>
 
@@ -2570,7 +2570,7 @@
       }
 
       if (mode === 'perspective') {
-        hintSpan.innerHTML = '<strong>পারসপেকটিভ মোড:</strong> বাঁকা ছবি/দলিলের ৪টি কোণা টেনে মিলিয়ে দিন, ক্যামস্ক্যানারের মতো হোমোগ্রাফি দিয়ে টানটান সোজা হয়ে যাবে। এছাড়া খালি জায়গায় মাউস টেনে নতুন সিলেকশন আঁকতে পারেন।';
+        hintSpan.innerHTML = '<strong>ক্যামস্ক্যানার পারসপেকটিভ মোড:</strong> ৪টি কোণার পিন টেনে বাঁকা কোণা মেলান, আর ৪টি বাহুর হ্যান্ডেল টেনে উপরে-নিচে ও ডানে-বাঁয়ে সিলেকশন বড়/ছোট করুন। ভেতরের অংশ চেপে পুরো সিলেকশন ড্র্যাগ করা যাবে।';
       } else {
         hintSpan.innerHTML = '<strong>৮-পয়েন্ট ক্রপ মোড:</strong> উপরে-নিচে ও ডানে-বায়ে টেনে সিলেকশন বড়-ছোট করুন, অথবা ভেতরে ধরে যেকোনো জায়গায় সরান। খালি জায়গায় মাউস ড্র্যাগ করে নতুন বক্স আঁকা যায়।';
       }
@@ -2954,6 +2954,18 @@
         }
         ctx.restore();
 
+        // Draw CamScanner Edge Handles (Top, Right, Bottom, Left Midpoints)
+        const midT = { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 };
+        const midR = { x: (corners[1].x + corners[2].x) / 2, y: (corners[1].y + corners[2].y) / 2 };
+        const midB = { x: (corners[3].x + corners[2].x) / 2, y: (corners[3].y + corners[2].y) / 2 };
+        const midL = { x: (corners[0].x + corners[3].x) / 2, y: (corners[0].y + corners[3].y) / 2 };
+
+        drawPerspectiveEdgeHandle(ctx, midT.x, midT.y, corners[0], corners[1], dragMode === 'edge_t');
+        drawPerspectiveEdgeHandle(ctx, midR.x, midR.y, corners[1], corners[2], dragMode === 'edge_r');
+        drawPerspectiveEdgeHandle(ctx, midB.x, midB.y, corners[3], corners[2], dragMode === 'edge_b');
+        drawPerspectiveEdgeHandle(ctx, midL.x, midL.y, corners[0], corners[3], dragMode === 'edge_l');
+
+        // Draw 4 Corner Pins
         const pinRadius = 14;
         corners.forEach((c, idx) => {
           ctx.beginPath();
@@ -3064,6 +3076,52 @@
       };
     }
 
+    // Distance from point to line segment
+    function distToSegment(p, v, w) {
+      const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
+      if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+      let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
+
+    // CamScanner-style Edge Handle (Midpoint Pill)
+    function drawPerspectiveEdgeHandle(ctx, x, y, p1, p2, isActive) {
+      const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const pillW = 28;
+      const pillH = 10;
+      const radius = 5;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+      ctx.shadowBlur = 5;
+      ctx.shadowOffsetY = 1;
+
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(-pillW / 2, -pillH / 2, pillW, pillH, radius);
+      } else {
+        ctx.rect(-pillW / 2, -pillH / 2, pillW, pillH);
+      }
+      ctx.fillStyle = isActive ? '#8b5cf6' : '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#7c3aed' : '#2563eb';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Grip indicator inside pill
+      ctx.beginPath();
+      ctx.arc(-4, 0, 1.8, 0, Math.PI * 2);
+      ctx.arc(4, 0, 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? '#ffffff' : '#2563eb';
+      ctx.fill();
+
+      ctx.restore();
+    }
+
     function isInsidePolygon(pos, pts) {
       let inside = false;
       for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -3084,13 +3142,37 @@
       if (state.selectionMode === 'perspective') {
         const corners = s.corners;
         if (!corners) return null;
-        const tol = 28 * scale;
+        const tolCorner = 26 * scale;
+        const tolEdge = 22 * scale;
+        const tolLine = 12 * scale;
 
+        // 1. Check 4 Corner Pins
         for (let i = 0; i < 4; i++) {
-          if (Math.hypot(corners[i].x - pos.x, corners[i].y - pos.y) <= tol) {
+          if (Math.hypot(corners[i].x - pos.x, corners[i].y - pos.y) <= tolCorner) {
             return 'corner' + i;
           }
         }
+
+        // 2. Check 4 CamScanner Edge Handles (Midpoints & Lines)
+        const midT = { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 };
+        const midR = { x: (corners[1].x + corners[2].x) / 2, y: (corners[1].y + corners[2].y) / 2 };
+        const midB = { x: (corners[3].x + corners[2].x) / 2, y: (corners[3].y + corners[2].y) / 2 };
+        const midL = { x: (corners[0].x + corners[3].x) / 2, y: (corners[0].y + corners[3].y) / 2 };
+
+        if (Math.hypot(midT.x - pos.x, midT.y - pos.y) <= tolEdge || distToSegment(pos, corners[0], corners[1]) <= tolLine) {
+          return 'edge_t';
+        }
+        if (Math.hypot(midB.x - pos.x, midB.y - pos.y) <= tolEdge || distToSegment(pos, corners[3], corners[2]) <= tolLine) {
+          return 'edge_b';
+        }
+        if (Math.hypot(midL.x - pos.x, midL.y - pos.y) <= tolEdge || distToSegment(pos, corners[0], corners[3]) <= tolLine) {
+          return 'edge_l';
+        }
+        if (Math.hypot(midR.x - pos.x, midR.y - pos.y) <= tolEdge || distToSegment(pos, corners[1], corners[2]) <= tolLine) {
+          return 'edge_r';
+        }
+
+        // 3. Check Inside Polygon for Moving Entire Box
         if (isInsidePolygon(pos, corners)) {
           return 'move';
         }
@@ -3121,8 +3203,8 @@
     function updateCursorStyle(target) {
       if (!target || target === 'draw_new') cropCanvas.style.cursor = 'crosshair';
       else if (target.startsWith('corner')) cropCanvas.style.cursor = 'grab';
-      else if (target === 't' || target === 'b') cropCanvas.style.cursor = 'ns-resize';
-      else if (target === 'l' || target === 'r') cropCanvas.style.cursor = 'ew-resize';
+      else if (target === 't' || target === 'b' || target === 'edge_t' || target === 'edge_b') cropCanvas.style.cursor = 'ns-resize';
+      else if (target === 'l' || target === 'r' || target === 'edge_l' || target === 'edge_r') cropCanvas.style.cursor = 'ew-resize';
       else if (target === 'tl' || target === 'br') cropCanvas.style.cursor = 'nwse-resize';
       else if (target === 'tr' || target === 'bl') cropCanvas.style.cursor = 'nesw-resize';
       else if (target === 'move') cropCanvas.style.cursor = 'move';
@@ -3187,6 +3269,30 @@
           const idx = parseInt(dragMode.replace('corner', ''));
           s.corners[idx].x = Math.max(0, Math.min(imgW, pos.x));
           s.corners[idx].y = Math.max(0, Math.min(imgH, pos.y));
+        } else if (dragMode === 'edge_t') {
+          // Drag Top Edge: Moves corners[0] (TL) and corners[1] (TR) together up or down
+          s.corners[0].x = Math.max(0, Math.min(imgW, initialCornersState[0].x + dx));
+          s.corners[0].y = Math.max(0, Math.min(imgH, initialCornersState[0].y + dy));
+          s.corners[1].x = Math.max(0, Math.min(imgW, initialCornersState[1].x + dx));
+          s.corners[1].y = Math.max(0, Math.min(imgH, initialCornersState[1].y + dy));
+        } else if (dragMode === 'edge_b') {
+          // Drag Bottom Edge: Moves corners[3] (BL) and corners[2] (BR) together up or down
+          s.corners[3].x = Math.max(0, Math.min(imgW, initialCornersState[3].x + dx));
+          s.corners[3].y = Math.max(0, Math.min(imgH, initialCornersState[3].y + dy));
+          s.corners[2].x = Math.max(0, Math.min(imgW, initialCornersState[2].x + dx));
+          s.corners[2].y = Math.max(0, Math.min(imgH, initialCornersState[2].y + dy));
+        } else if (dragMode === 'edge_l') {
+          // Drag Left Edge: Moves corners[0] (TL) and corners[3] (BL) together left or right
+          s.corners[0].x = Math.max(0, Math.min(imgW, initialCornersState[0].x + dx));
+          s.corners[0].y = Math.max(0, Math.min(imgH, initialCornersState[0].y + dy));
+          s.corners[3].x = Math.max(0, Math.min(imgW, initialCornersState[3].x + dx));
+          s.corners[3].y = Math.max(0, Math.min(imgH, initialCornersState[3].y + dy));
+        } else if (dragMode === 'edge_r') {
+          // Drag Right Edge: Moves corners[1] (TR) and corners[2] (BR) together left or right
+          s.corners[1].x = Math.max(0, Math.min(imgW, initialCornersState[1].x + dx));
+          s.corners[1].y = Math.max(0, Math.min(imgH, initialCornersState[1].y + dy));
+          s.corners[2].x = Math.max(0, Math.min(imgW, initialCornersState[2].x + dx));
+          s.corners[2].y = Math.max(0, Math.min(imgH, initialCornersState[2].y + dy));
         } else if (dragMode === 'move') {
           for (let i = 0; i < 4; i++) {
             s.corners[i].x = Math.max(0, Math.min(imgW, initialCornersState[i].x + dx));
